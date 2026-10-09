@@ -1,15 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
+
+<!-- =====================================================================
+     MARS BASE WEBSITE
+     One file, no build step, easy to serve from an ESP32.
+
+     Layout of this file:
+       PART 1  - The page head (title, mobile settings)
+       PART 2  - The styling (CSS)
+       PART 3  - The page content (HTML)
+       PART 4  - The behaviour (JavaScript)
+     ===================================================================== -->
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mars Base</title>
+
+    <!-- =================================================================
+         PART 2: STYLING
+         ================================================================= -->
     <style>
+
+        /* ---------------------------------------------------------------
+           Colours we reuse everywhere. Change them here, they update
+           across the whole site.
+           --------------------------------------------------------------- */
         :root {
-            --accent: #E3701A;
-            --sand-dark: #341D14;
+            --accent: #E3701A;       /* Mars orange */
+            --sand-dark: #341D14;    /* dark sand / panel colour */
+            --text: #f3d9c4;         /* soft sandy white */
         }
 
+        /* ---------------------------------------------------------------
+           Basic page setup
+           --------------------------------------------------------------- */
         * { box-sizing: border-box; }
         html { scroll-behavior: smooth; }
 
@@ -17,11 +42,26 @@
             font-family: Arial, sans-serif;
             line-height: 1.6;
             margin: 0;
-            color: #f3d9c4;
+            color: var(--text);
             background: #0a0614;
         }
 
-        /* ---------- Nav ---------- */
+        /* ---------------------------------------------------------------
+           Thin orange bar at the top that fills as you scroll down
+           --------------------------------------------------------------- */
+        #progress {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            width: 0;
+            background: var(--accent);
+            z-index: 20;
+        }
+
+        /* ---------------------------------------------------------------
+           Navigation bar (stays at the top of the screen)
+           --------------------------------------------------------------- */
         nav {
             position: fixed;
             top: 0; left: 0; right: 0;
@@ -34,7 +74,7 @@
             z-index: 10;
         }
         nav a {
-            color: #f3d9c4;
+            color: var(--text);
             text-decoration: none;
             font-size: 0.95rem;
             letter-spacing: 0.08em;
@@ -43,9 +83,16 @@
             border-bottom: 2px solid transparent;
             transition: color .2s, border-color .2s;
         }
-        nav a:hover, nav a.active { color: var(--accent); border-color: var(--accent); }
+        nav a:hover,
+        nav a.active {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
 
-        /* ---------- Background: night -> Martian sunset (driven by scroll) ---------- */
+        /* ---------------------------------------------------------------
+           The animated sky behind everything
+           Night at the top of the page, Martian sunset as you scroll.
+           --------------------------------------------------------------- */
         #sky {
             position: fixed;
             inset: 0;
@@ -54,7 +101,7 @@
             background: linear-gradient(to bottom, #05030c 0%, #0d0820 60%, #1a0f2e 100%);
         }
 
-        /* Sunset layer fades in as you scroll down */
+        /* Sunset colours, fade in as you scroll (opacity set by JavaScript) */
         #sunset {
             position: absolute;
             inset: 0;
@@ -66,10 +113,10 @@
                 #f0a05a 92%);
         }
 
+        /* Stars */
         #stars {
             position: absolute;
             inset: 0 0 30% 0;
-            transition: transform .15s linear;
         }
         .star {
             position: absolute;
@@ -79,15 +126,15 @@
         }
         @keyframes twinkle {
             0%, 100% { opacity: 0.9; }
-            50% { opacity: 0.2; }
+            50%      { opacity: 0.2; }
         }
 
-        /* Shooting star */
+        /* Shooting stars (created by JavaScript every few seconds) */
         .shooting {
             position: absolute;
             width: 120px;
             height: 2px;
-            background: linear-gradient(to right, rgba(255,255,255,0), #fff);
+            background: linear-gradient(to right, rgba(255, 255, 255, 0), #fff);
             transform: rotate(30deg);
             opacity: 0;
             animation: shoot 1.2s ease-out forwards;
@@ -97,7 +144,7 @@
             100% { opacity: 0; transform: translate(300px, 170px) rotate(30deg); }
         }
 
-        /* Sun rises as you scroll */
+        /* The (small, pale blue) Martian sun, rises as you scroll */
         #sun {
             position: absolute;
             left: 68%;
@@ -112,6 +159,7 @@
             will-change: transform;
         }
 
+        /* Sand dunes at the bottom of the screen */
         .dune {
             position: absolute;
             left: -10%;
@@ -122,7 +170,9 @@
         .dune.back  { bottom: -8%;  height: 30%; background: #7a3a24; }
         .dune.front { bottom: -14%; height: 26%; background: var(--sand-dark); }
 
-        /* ---------- Layout ---------- */
+        /* ---------------------------------------------------------------
+           Hero section (the big title at the top)
+           --------------------------------------------------------------- */
         header {
             min-height: 100vh;
             display: flex;
@@ -140,8 +190,13 @@
             color: #fff;
             text-shadow: 0 0 20px rgba(227, 112, 26, 0.7);
         }
-        header p { margin: 0.5rem 0 2rem; color: var(--accent); font-size: 1.2rem; }
+        header p {
+            margin: 0.5rem 0 2rem;
+            color: var(--accent);
+            font-size: 1.2rem;
+        }
 
+        /* Orange outlined button */
         .btn {
             display: inline-block;
             padding: 0.8rem 1.8rem;
@@ -159,14 +214,10 @@
             box-shadow: 0 8px 25px rgba(227, 112, 26, 0.5);
         }
 
-        .scroll-hint {
-            margin-top: 3rem;
-            color: #f3d9c4;
-            opacity: .7;
-            animation: bob 1.8s infinite ease-in-out;
-        }
-        @keyframes bob { 50% { transform: translateY(10px); } }
-
+        /* ---------------------------------------------------------------
+           Content sections (About, Explore, Sensors, Team)
+           They start invisible and fade in when you scroll to them.
+           --------------------------------------------------------------- */
         main {
             max-width: 900px;
             margin: 0 auto;
@@ -180,45 +231,63 @@
             padding: 1.5rem 2rem;
             margin-bottom: 30vh;
             backdrop-filter: blur(4px);
-            /* reveal animation */
+
+            /* hidden until scrolled into view */
             opacity: 0;
             transform: translateY(40px);
             transition: opacity .8s ease, transform .8s ease;
         }
-        section.visible { opacity: 1; transform: none; }
-        h2 { margin-top: 0; color: var(--accent); }
+        section.visible {
+            opacity: 1;
+            transform: none;
+        }
+        h2 {
+            margin-top: 0;
+            color: var(--accent);
+        }
 
-        /* ---------- 3D model ---------- */
+        /* ---------------------------------------------------------------
+           3D model viewer and its clickable dots (hotspots)
+           --------------------------------------------------------------- */
         #model-viewer {
             width: 100%;
             height: 480px;
             border-radius: 8px;
-            background: radial-gradient(circle at 50% 70%, rgba(227,112,26,0.25), rgba(0,0,0,0.45));
+            background: radial-gradient(circle at 50% 70%, rgba(227, 112, 26, 0.25), rgba(0, 0, 0, 0.45));
             --poster-color: transparent;
         }
-        .hint { font-size: 0.9rem; opacity: .75; margin: 0.5rem 0 0; text-align: center; }
+        .hint {
+            font-size: 0.9rem;
+            opacity: .75;
+            margin: 0.5rem 0 0;
+            text-align: center;
+        }
 
         .hotspot {
             display: block;
-            width: 22px; height: 22px;
+            width: 22px;
+            height: 22px;
             border-radius: 50%;
             border: 2px solid #fff;
             background: var(--accent);
-            box-shadow: 0 0 0 0 rgba(227,112,26,.7);
+            box-shadow: 0 0 0 0 rgba(227, 112, 26, .7);
             animation: pulse 2s infinite;
             cursor: pointer;
             padding: 0;
         }
         .hotspot:hover { transform: scale(1.2); }
         @keyframes pulse {
-            70% { box-shadow: 0 0 0 14px rgba(227,112,26,0); }
-            100% { box-shadow: 0 0 0 0 rgba(227,112,26,0); }
+            70%  { box-shadow: 0 0 0 14px rgba(227, 112, 26, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(227, 112, 26, 0); }
         }
+
+        /* Little label that appears next to each dot */
         .hotspot .tip {
             position: absolute;
-            left: 30px; top: -4px;
+            left: 30px;
+            top: -4px;
             white-space: nowrap;
-            background: rgba(0,0,0,.8);
+            background: rgba(0, 0, 0, .8);
             color: #fff;
             padding: 3px 10px;
             border-radius: 6px;
@@ -226,7 +295,9 @@
             pointer-events: none;
         }
 
-        /* ---------- Sensors ---------- */
+        /* ---------------------------------------------------------------
+           Sensor cards
+           --------------------------------------------------------------- */
         .sensors {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -242,17 +313,21 @@
             transition: transform .2s, border-color .2s, box-shadow .2s;
         }
         .sensor:hover {
-            transform: scale(1.05); 
+            transform: scale(1.05);
             border-color: var(--accent);
             box-shadow: 0 6px 20px rgba(227, 112, 26, 0.35);
         }
         .sensor.flash { animation: flash .5s; }
-        @keyframes flash { 50% { background: rgba(227, 112, 26, 0.5); } }
-        .sensor .value { font-size: 1.8rem; color: #fff; }
-        .sensor .label { font-size: 0.9rem; color: var(--accent); }
+        @keyframes flash {
+            50% { background: rgba(227, 112, 26, 0.5); }
+        }
+        .sensor .value  { font-size: 1.8rem; color: #fff; }
+        .sensor .label  { font-size: 0.9rem; color: var(--accent); }
         .sensor .detail { font-size: 0.8rem; opacity: .7; height: 1.2em; }
 
-        /* ---------- Team ---------- */
+        /* ---------------------------------------------------------------
+           Team cards
+           --------------------------------------------------------------- */
         .team {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -268,6 +343,9 @@
         .member:hover { transform: scale(1.05); }
         .member .avatar { font-size: 2.5rem; }
 
+        /* ---------------------------------------------------------------
+           Footer
+           --------------------------------------------------------------- */
         footer {
             text-align: center;
             padding: 1.5rem 1rem;
@@ -276,21 +354,28 @@
         }
         footer p { margin: 0; }
 
-       
     </style>
 </head>
+
+
+<!-- =====================================================================
+     PART 3: PAGE CONTENT
+     ===================================================================== -->
 <body>
 
+    <!-- Scroll progress bar -->
     <div id="progress"></div>
 
+    <!-- Top navigation menu -->
     <nav>
-        <a href="#top" data-section="top">Home</a>
-        <a href="#about" data-section="about">About</a>
+        <a href="#top"     data-section="top">Home</a>
+        <a href="#about"   data-section="about">About</a>
         <a href="#explore" data-section="explore">Explore</a>
         <a href="#sensors" data-section="sensors">Sensors</a>
-        <a href="#team" data-section="team">Team</a>
+        <a href="#team"    data-section="team">Team</a>
     </nav>
 
+    <!-- Animated sky background (stars, sun, dunes) -->
     <div id="sky">
         <div id="sunset"></div>
         <div id="stars"></div>
@@ -299,6 +384,10 @@
         <div class="dune front"></div>
     </div>
 
+
+    <!-- ---------------------------------------------------------------
+         Home: the big title
+         --------------------------------------------------------------- -->
     <header id="top">
         <h1>Mars Base</h1>
         <p>Our home on the red planet</p>
@@ -306,55 +395,110 @@
     </header>
 
     <main>
+
+        <!-- -----------------------------------------------------------
+             About: a short welcome
+             ----------------------------------------------------------- -->
         <section id="about">
             <h2>Welcome to the Base</h2>
-            <p>This is our Martian base. Explore the 3D model of the house and check the live sensor readings from inside.</p>
+            <p>
+                This is our Martian base. Explore the 3D model of the house
+                and check the live sensor readings from inside.
+            </p>
         </section>
 
+
+        <!-- -----------------------------------------------------------
+             Explore: the 3D model of the base
+
+             The model is loaded straight from GitHub, so the device
+             viewing this page needs internet access.
+
+             Hotspots (the glowing dots) must sit INSIDE the
+             <model-viewer> tags. Move a dot by editing data-position
+             (x y z).
+             ----------------------------------------------------------- -->
         <section id="explore">
             <h2>Explore the Base</h2>
 
+            <!-- The library that makes <model-viewer> work -->
             <script type="module"
                 src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 
-            <!-- Our Blender model (base.glb must sit next to this file) -->
-            <model-viewer id="model-viewer" src="base.glb" alt="3D model of our Mars base"
-                camera-controls auto-rotate auto-rotate-delay="2000"
-                camera-orbit="35deg 70deg auto" min-camera-orbit="auto 5deg auto"
-                shadow-intensity="1.2" exposure="1.1" interaction-prompt="auto">
+            <model-viewer id="model-viewer"
+                src="https://raw.githubusercontent.com/thecobkid2009-del/Hackathon-2026/main/website%20(Totally%20not%20vibe%20coded)/base.glb"
+                alt="3D model of our Mars base"
+                camera-controls
+                auto-rotate
+                auto-rotate-delay="2000"
+                camera-orbit="35deg 70deg auto"
+                min-camera-orbit="auto 5deg auto"
+                shadow-intensity="1.2"
+                exposure="1.1"
+                interaction-prompt="auto">
 
-                <!-- Hotspots: click them. Move them by editing data-position (x y z) -->
+                <!-- Dot 1: Antenna (jumps to the Light sensor) -->
                 <button class="hotspot" slot="hotspot-antenna" data-target="light"
                     data-position="-0.013 1.94 0.9" data-normal="0 1 0">
-                    <span class="tip">Antenna</span></button>
+                    <span class="tip">Antenna</span>
+                </button>
+
+                <!-- Dot 2: Dome (jumps to the Humidity sensor) -->
                 <button class="hotspot" slot="hotspot-dome" data-target="humidity"
                     data-position="0 1 0" data-normal="0 1 0">
-                    <span class="tip">Dome</span></button>
+                    <span class="tip">Dome</span>
+                </button>
+
+                <!-- Dot 3: Habitat module (jumps to the Temperature sensor) -->
                 <button class="hotspot" slot="hotspot-module" data-target="temp"
                     data-position="0.8 -0.6 0.84" data-normal="0.7 0 0.7">
-                    <span class="tip">Habitat module</span></button>
+                    <span class="tip">Habitat module</span>
+                </button>
             </model-viewer>
+
+            <!-- Shows "Loading... 40%" or an error message if the model fails -->
+            <p id="model-status" class="hint">Loading model…</p>
             <p class="hint">Drag to rotate · scroll to zoom · click the glowing dots</p>
         </section>
 
+
+        <!-- -----------------------------------------------------------
+             Sensors: temperature, humidity, light
+             To add a sensor, copy one block and change data-sensor,
+             data-unit, and the label.
+             ----------------------------------------------------------- -->
         <section id="sensors">
             <h2>Base Sensors</h2>
             <p>Click a sensor to refresh it.</p>
+
             <div class="sensors">
                 <div class="sensor" data-sensor="temp" data-unit="°C" data-min="18" data-max="26">
-                    <div class="value">--</div><div class="label">Temperature</div><div class="detail"></div>
+                    <div class="value">--</div>
+                    <div class="label">Temperature</div>
+                    <div class="detail"></div>
                 </div>
+
                 <div class="sensor" data-sensor="humidity" data-unit="%" data-min="30" data-max="60">
-                    <div class="value">--</div><div class="label">Humidity</div><div class="detail"></div>
+                    <div class="value">--</div>
+                    <div class="label">Humidity</div>
+                    <div class="detail"></div>
                 </div>
+
                 <div class="sensor" data-sensor="light" data-unit=" lux" data-min="200" data-max="800">
-                    <div class="value">--</div><div class="label">Light</div><div class="detail"></div>
+                    <div class="value">--</div>
+                    <div class="label">Light</div>
+                    <div class="detail"></div>
                 </div>
             </div>
         </section>
 
+
+        <!-- -----------------------------------------------------------
+             Team: who built this
+             ----------------------------------------------------------- -->
         <section id="team">
             <h2>The Team</h2>
+
             <div class="team">
                 <div class="member"><div class="avatar">👩‍🚀</div>Jacob Luscombe</div>
                 <div class="member"><div class="avatar">👨‍🚀</div>Vincent Watson</div>
@@ -362,108 +506,203 @@
                 <div class="member"><div class="avatar">🧑‍🚀</div>Navtej Vishwanath</div>
             </div>
         </section>
+
     </main>
 
     <footer>
         <p>&copy; 404 Planet Not Found</p>
     </footer>
 
+
+    <!-- =================================================================
+         PART 4: BEHAVIOUR (JavaScript)
+         ================================================================= -->
     <script>
-        const $ = (s) => document.querySelector(s);
-        const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
 
-        // ---------- Stars ----------
+        /* ---------------------------------------------------------------
+           Small helpers
+           --------------------------------------------------------------- */
+        const $ = (selector) => document.querySelector(selector);
+        const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+
+
+        /* ---------------------------------------------------------------
+           1. Create the twinkling stars
+           --------------------------------------------------------------- */
         const starsEl = $('#stars');
+
         for (let i = 0; i < 170; i++) {
-            const s = document.createElement('div');
-            s.className = 'star';
-            const size = Math.random() * 2 + 1;
-            s.style.width = s.style.height = size + 'px';
-            s.style.left = Math.random() * 100 + '%';
-            s.style.top = Math.random() * 100 + '%';
-            s.style.animationDelay = Math.random() * 3 + 's';
-            s.style.animationDuration = (2 + Math.random() * 3) + 's';
-            starsEl.appendChild(s);
+            const star = document.createElement('div');
+            star.className = 'star';
+
+            const size = Math.random() * 2 + 1;   // 1px to 3px
+            star.style.width  = size + 'px';
+            star.style.height = size + 'px';
+            star.style.left = Math.random() * 100 + '%';
+            star.style.top  = Math.random() * 100 + '%';
+            star.style.animationDelay    = Math.random() * 3 + 's';
+            star.style.animationDuration = (2 + Math.random() * 3) + 's';
+
+            starsEl.appendChild(star);
         }
 
-        // ---------- Scroll: night -> sunset ----------
-        const sunset = $('#sunset'), sun = $('#sun');
-        const duneBack = $('.dune.back'), duneFront = $('.dune.front');
-        const bar = $('#progress');
 
-        function onScroll() {
-            const max = document.documentElement.scrollHeight - innerHeight;
-            const p = max > 0 ? clamp(scrollY / max, 0, 1) : 0;
-
-            sunset.style.opacity = p;                          // sky warms up
-            starsEl.style.opacity = 1 - p * 0.85;              // stars fade
-            sun.style.transform = `translateY(${-p * innerHeight * 0.45}px)`; // sun rises
-            duneBack.style.transform = `translateY(${-p * 30}px)`;
-            duneFront.style.transform = `translateY(${-p * 60}px)`;
-            bar.style.width = (p * 100) + '%';
-
-            // highlight current nav link
-            let current = 'top';
-            document.querySelectorAll('header, section').forEach(el => {
-                if (el.getBoundingClientRect().top < innerHeight * 0.5) current = el.id;
-            });
-            document.querySelectorAll('nav a').forEach(a =>
-                a.classList.toggle('active', a.dataset.section === current));
-        }
-        addEventListener('scroll', onScroll, { passive: true });
-        addEventListener('resize', onScroll);
-        onScroll();
-
-        // ---------- Sections fade in when scrolled to ----------
-        const io = new IntersectionObserver((entries) => {
-            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-        }, { threshold: 0.15 });
-        document.querySelectorAll('section').forEach(s => io.observe(s));
-
-
-
-        // ---------- Shooting stars every few seconds ----------
+        /* ---------------------------------------------------------------
+           2. Shooting star every 4 seconds
+           --------------------------------------------------------------- */
         setInterval(() => {
-            const s = document.createElement('div');
-            s.className = 'shooting';
-            s.style.left = Math.random() * 60 + '%';
-            s.style.top = Math.random() * 30 + '%';
-            starsEl.appendChild(s);
-            setTimeout(() => s.remove(), 1300);
+            const shot = document.createElement('div');
+            shot.className = 'shooting';
+            shot.style.left = Math.random() * 60 + '%';
+            shot.style.top  = Math.random() * 30 + '%';
+            starsEl.appendChild(shot);
+
+            setTimeout(() => shot.remove(), 1300);   // clean up after it fades
         }, 4000);
 
-       
 
-        // ---------- Sensors ----------
-        // Call this with real Arduino data, e.g. updateSensor('temp', 21.4)
-        function updateSensor(name, value) {
-            const el = document.querySelector(`.sensor[data-sensor="${name}"]`);
-            if (!el) return;
-            el.querySelector('.value').textContent = value + el.dataset.unit;
-            el.querySelector('.detail').textContent = 'Updated ' + new Date().toLocaleTimeString();
-            el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+        /* ---------------------------------------------------------------
+           3. Scrolling effects
+              - sky changes from night to sunset
+              - stars fade, sun and dunes move
+              - progress bar fills
+              - the current nav link is highlighted
+           --------------------------------------------------------------- */
+        const sunset    = $('#sunset');
+        const sun       = $('#sun');
+        const duneBack  = $('.dune.back');
+        const duneFront = $('.dune.front');
+        const progress  = $('#progress');
+
+        function onScroll() {
+            // How far down the page are we? 0 = top, 1 = bottom
+            const maxScroll = document.documentElement.scrollHeight - innerHeight;
+            const p = maxScroll > 0 ? clamp(scrollY / maxScroll, 0, 1) : 0;
+
+            sunset.style.opacity    = p;
+            starsEl.style.opacity   = 1 - p * 0.85;
+            sun.style.transform     = `translateY(${-p * innerHeight * 0.45}px)`;
+            duneBack.style.transform  = `translateY(${-p * 30}px)`;
+            duneFront.style.transform = `translateY(${-p * 60}px)`;
+            progress.style.width    = (p * 100) + '%';
+
+            // Work out which section is on screen and highlight its nav link
+            let current = 'top';
+            document.querySelectorAll('header, section').forEach((el) => {
+                if (el.getBoundingClientRect().top < innerHeight * 0.5) {
+                    current = el.id;
+                }
+            });
+            document.querySelectorAll('nav a').forEach((link) => {
+                link.classList.toggle('active', link.dataset.section === current);
+            });
         }
 
-        // Demo values (random) so the page feels alive. Delete once the Arduino is hooked up.
-        function demoValue(el) {
-            const min = +el.dataset.min, max = +el.dataset.max;
-            return (min + Math.random() * (max - min)).toFixed(1);
-        }
-        document.querySelectorAll('.sensor').forEach(el => {
-            updateSensor(el.dataset.sensor, demoValue(el));
-            el.addEventListener('click', () => updateSensor(el.dataset.sensor, demoValue(el)));
+        addEventListener('scroll', onScroll, { passive: true });
+        addEventListener('resize', onScroll);
+        onScroll();   // run once on load
+
+
+        /* ---------------------------------------------------------------
+           4. Sections fade in when you scroll to them
+           --------------------------------------------------------------- */
+        const fadeObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) entry.target.classList.add('visible');
+            });
+        }, { threshold: 0.15 });
+
+        document.querySelectorAll('section').forEach((s) => fadeObserver.observe(s));
+
+
+        /* ---------------------------------------------------------------
+           5. 3D model loading status
+              Shows progress, and a readable error if loading fails.
+              Handy for debugging on the ESP32.
+           --------------------------------------------------------------- */
+        const model = $('#model-viewer');
+        const modelStatus = $('#model-status');
+
+        model.addEventListener('progress', (event) => {
+            const percent = Math.round(event.detail.totalProgress * 100);
+            modelStatus.textContent = 'Loading model… ' + percent + '%';
         });
 
-        document.querySelectorAll('.hotspot').forEach(h => {
-            h.addEventListener('click', () => {
-                const card = document.querySelector(`.sensor[data-sensor="${h.dataset.target}"]`);
+        model.addEventListener('load', () => {
+            modelStatus.textContent = '';   // hide the message once it works
+        });
+
+        model.addEventListener('error', (event) => {
+            const reason = event.detail?.sourceError?.message || 'unknown error';
+            modelStatus.textContent = 'Model failed to load: ' + reason;
+            console.error('Model error:', event);
+        });
+
+        // If the library itself never loaded, tell the user why
+        setTimeout(() => {
+            if (!customElements.get('model-viewer')) {
+                modelStatus.textContent =
+                    'The 3D viewer library did not load. Check this device has internet access.';
+            }
+        }, 5000);
+
+
+        /* ---------------------------------------------------------------
+           6. Sensors
+           ---------------------------------------------------------------
+           To show REAL data from the ESP32, call:
+               updateSensor('temp', 21.4);
+               updateSensor('humidity', 45);
+               updateSensor('light', 530);
+           --------------------------------------------------------------- */
+        function updateSensor(name, value) {
+            const card = document.querySelector(`.sensor[data-sensor="${name}"]`);
+            if (!card) return;
+
+            card.querySelector('.value').textContent  = value + card.dataset.unit;
+            card.querySelector('.detail').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+            // Restart the flash animation
+            card.classList.remove('flash');
+            void card.offsetWidth;
+            card.classList.add('flash');
+        }
+
+        // Fake readings so the page looks alive. DELETE this block once real
+        // sensor data is hooked up.
+        function demoValue(card) {
+            const min = +card.dataset.min;
+            const max = +card.dataset.max;
+            return (min + Math.random() * (max - min)).toFixed(1);
+        }
+
+        document.querySelectorAll('.sensor').forEach((card) => {
+            updateSensor(card.dataset.sensor, demoValue(card));
+            card.addEventListener('click', () => {
+                updateSensor(card.dataset.sensor, demoValue(card));
+            });
+        });
+
+
+        /* ---------------------------------------------------------------
+           7. Clicking a glowing dot on the model jumps to its sensor
+           --------------------------------------------------------------- */
+        document.querySelectorAll('.hotspot').forEach((dot) => {
+            dot.addEventListener('click', () => {
+                const card = document.querySelector(`.sensor[data-sensor="${dot.dataset.target}"]`);
                 if (!card) return;
+
                 card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Wait for the scroll, then flash the card
                 setTimeout(() => {
-                    card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+                    card.classList.remove('flash');
+                    void card.offsetWidth;
+                    card.classList.add('flash');
                 }, 600);
             });
         });
+
     </script>
 </body>
 </html>
