@@ -9,10 +9,11 @@
 const char* ssid = "ESP NET";
 const char* password = "TestESP32";
 
+float lightLevel;
 float temp;
 float hum;
 
-#define LDR_PIN 5;
+#define LDR_PIN 5
 
 #define DHT_PIN 16 //DHT sensor module used for measuring temp and humidity
 
@@ -34,7 +35,7 @@ void handleRoot() {
   } else {
     html += "Temperature: " + String(temp, 1) + " C<br>";
     html += "Humidity: " + String(hum, 1) + " %<br>";
-    html += "Light level: " + String(lightlevel, 1) + " C<br>";
+    html += "Light level: " + String(lightLevel, 1) + " Lux<br>";
 
   }
 
@@ -91,7 +92,7 @@ void loop() {
 
 
 //Light sensor LDR
-int lightLevel = analogRead(LDR_PIN);
+lightLevel = analogRead(LDR_PIN);
   handleRoot();
   delay(2000);
   
