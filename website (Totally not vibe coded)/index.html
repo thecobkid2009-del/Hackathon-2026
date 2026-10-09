@@ -21,17 +21,6 @@
             background: #0a0614;
         }
 
-        /* ---------- Scroll progress bar ---------- */
-        #progress {
-            position: fixed;
-            top: 0; left: 0;
-            height: 4px;
-            width: 0;
-            background: var(--accent);
-            box-shadow: 0 0 10px var(--accent);
-            z-index: 20;
-        }
-
         /* ---------- Nav ---------- */
         nav {
             position: fixed;
@@ -253,7 +242,7 @@
             transition: transform .2s, border-color .2s, box-shadow .2s;
         }
         .sensor:hover {
-            transform: translateY(-4px);
+            transform: scale(1.05); 
             border-color: var(--accent);
             box-shadow: 0 6px 20px rgba(227, 112, 26, 0.35);
         }
@@ -276,7 +265,7 @@
             text-align: center;
             transition: transform .2s;
         }
-        .member:hover { transform: rotate(-2deg) scale(1.05); }
+        .member:hover { transform: scale(1.05); }
         .member .avatar { font-size: 2.5rem; }
 
         footer {
@@ -287,24 +276,7 @@
         }
         footer p { margin: 0; }
 
-        /* Click sparkles */
-        .spark {
-            position: fixed;
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: var(--accent);
-            pointer-events: none;
-            z-index: 30;
-            animation: spark .7s ease-out forwards;
-        }
-        @keyframes spark {
-            to { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            * { animation: none !important; transition: none !important; }
-            section { opacity: 1; transform: none; }
-        }
+       
     </style>
 </head>
 <body>
@@ -331,7 +303,6 @@
         <h1>Mars Base</h1>
         <p>Our home on the red planet</p>
         <a class="btn" href="#explore">Explore the Base</a>
-        <div class="scroll-hint">↓ scroll to watch the sun rise ↓</div>
     </header>
 
     <main>
@@ -385,9 +356,10 @@
         <section id="team">
             <h2>The Team</h2>
             <div class="team">
-                <div class="member"><div class="avatar">👩‍🚀</div>Name 1</div>
-                <div class="member"><div class="avatar">👨‍🚀</div>Name 2</div>
-                <div class="member"><div class="avatar">🧑‍🚀</div>Name 3</div>
+                <div class="member"><div class="avatar">👩‍🚀</div>Jacob Luscombe</div>
+                <div class="member"><div class="avatar">👨‍🚀</div>Vincent Watson</div>
+                <div class="member"><div class="avatar">🧑‍🚀</div>Sumvidh Bharadwaj</div>
+                <div class="member"><div class="avatar">🧑‍🚀</div>Navtej Vishwanath</div>
             </div>
         </section>
     </main>
@@ -448,12 +420,7 @@
         }, { threshold: 0.15 });
         document.querySelectorAll('section').forEach(s => io.observe(s));
 
-        // ---------- Mouse parallax on stars ----------
-        addEventListener('mousemove', (e) => {
-            const x = (e.clientX / innerWidth - 0.5) * -20;
-            const y = (e.clientY / innerHeight - 0.5) * -20;
-            starsEl.style.transform = `translate(${x}px, ${y}px)`;
-        });
+
 
         // ---------- Shooting stars every few seconds ----------
         setInterval(() => {
@@ -465,20 +432,7 @@
             setTimeout(() => s.remove(), 1300);
         }, 4000);
 
-        // ---------- Click sparkles ----------
-        addEventListener('click', (e) => {
-            for (let i = 0; i < 8; i++) {
-                const sp = document.createElement('div');
-                sp.className = 'spark';
-                sp.style.left = e.clientX + 'px';
-                sp.style.top = e.clientY + 'px';
-                const a = Math.random() * Math.PI * 2, d = 20 + Math.random() * 30;
-                sp.style.setProperty('--dx', Math.cos(a) * d + 'px');
-                sp.style.setProperty('--dy', Math.sin(a) * d + 'px');
-                document.body.appendChild(sp);
-                setTimeout(() => sp.remove(), 700);
-            }
-        });
+       
 
         // ---------- Sensors ----------
         // Call this with real Arduino data, e.g. updateSensor('temp', 21.4)
