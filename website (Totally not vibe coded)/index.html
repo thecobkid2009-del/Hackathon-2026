@@ -46,18 +46,6 @@
             background: #0a0614;
         }
 
-        /* ---------------------------------------------------------------
-           Thin orange bar at the top that fills as you scroll down
-           --------------------------------------------------------------- */
-        #progress {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 3px;
-            width: 0;
-            background: var(--accent);
-            z-index: 20;
-        }
 
         /* ---------------------------------------------------------------
            Navigation bar (stays at the top of the screen)
@@ -256,12 +244,6 @@
             background: radial-gradient(circle at 50% 70%, rgba(227, 112, 26, 0.25), rgba(0, 0, 0, 0.45));
             --poster-color: transparent;
         }
-        .hint {
-            font-size: 0.9rem;
-            opacity: .75;
-            margin: 0.5rem 0 0;
-            text-align: center;
-        }
 
         .hotspot {
             display: block;
@@ -271,15 +253,10 @@
             border: 2px solid #fff;
             background: var(--accent);
             box-shadow: 0 0 0 0 rgba(227, 112, 26, .7);
-            animation: pulse 2s infinite;
             cursor: pointer;
             padding: 0;
         }
         .hotspot:hover { transform: scale(1.2); }
-        @keyframes pulse {
-            70%  { box-shadow: 0 0 0 14px rgba(227, 112, 26, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(227, 112, 26, 0); }
-        }
 
         /* Little label that appears next to each dot */
         .hotspot .tip {
@@ -426,16 +403,17 @@
                 src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 
             <model-viewer id="model-viewer"
-                src="https://raw.githubusercontent.com/thecobkid2009-del/Hackathon-2026/main/website%20(Totally%20not%20vibe%20coded)/base.glb"
+                src="https://raw.githubusercontent.com/thecobkid2009-del/Hackathon-2026/main/website%20(Totally%20not%20vibe%20coded)/marsbase.glb"
                 alt="3D model of our Mars base"
                 camera-controls
                 auto-rotate
                 auto-rotate-delay="2000"
-                camera-orbit="35deg 70deg auto"
-                min-camera-orbit="auto 5deg auto"
+                camera-orbit="35deg 40deg 30%"
+                min-camera-orbit="auto 5deg 30%"
                 shadow-intensity="1.2"
                 exposure="1.1"
-                interaction-prompt="auto">
+                interaction-prompt="none">
+                
 
                 <!-- Dot 1: Antenna (jumps to the Light sensor) -->
                 <button class="hotspot" slot="hotspot-antenna" data-target="light"
@@ -625,7 +603,9 @@
 
         model.addEventListener('progress', (event) => {
             const percent = Math.round(event.detail.totalProgress * 100);
-            modelStatus.textContent = 'Loading model… ' + percent + '%';
+            if (percent < 100) {
+                modelStatus.textContent = 'Loading model… ' + percent + '%';
+            }
         });
 
         model.addEventListener('load', () => {
