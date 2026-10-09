@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mars Base</title>
+    <style>
+        :root {
+            --accent: #E3701A;
+            --sand-dark: #341D14;
+        }
+
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            color: #f3d9c4;
+            background: #0a0614;
+        }
+
+        /* ---------- Scroll progress bar ---------- */
+        #progress {
+            position: fixed;
+            top: 0; left: 0;
+            height: 4px;
+            width: 0;
+            background: var(--accent);
+            box-shadow: 0 0 10px var(--accent);
+            z-index: 20;
+        }
+
+        /* ---------- Nav ---------- */
+        nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            padding: 0.9rem 1rem 0.7rem;
+            background: rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(6px);
+            z-index: 10;
+        }
+        nav a {
+            color: #f3d9c4;
+            text-decoration: none;
+            font-size: 0.95rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding-bottom: 2px;
+            border-bottom: 2px solid transparent;
+            transition: color .2s, border-color .2s;
+        }
+        nav a:hover, nav a.active { color: var(--accent); border-color: var(--accent); }
+
+        /* ---------- Background: night -> Martian sunset (driven by scroll) ---------- */
+        #sky {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #05030c 0%, #0d0820 60%, #1a0f2e 100%);
+        }
+
+        /* Sunset layer fades in as you scroll down */
+        #sunset {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            background: linear-gradient(to bottom,
+                #1a0b2e 0%,
+                #4a1d44 30%,
+                #b5502f 68%,
+                #f0a05a 92%);
+        }
+
+        #stars {
+            position: absolute;
+            inset: 0 0 30% 0;
+            transition: transform .15s linear;
+        }
+        .star {
+            position: absolute;
+            background: #fff;
+            border-radius: 50%;
+            animation: twinkle 3s infinite ease-in-out;
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.9; }
+            50% { opacity: 0.2; }
+        }
+
+        /* Shooting star */
+        .shooting {
+            position: absolute;
+            width: 120px;
+            height: 2px;
+            background: linear-gradient(to right, rgba(255,255,255,0), #fff);
+            transform: rotate(30deg);
+            opacity: 0;
+            animation: shoot 1.2s ease-out forwards;
+        }
+        @keyframes shoot {
+            0%   { opacity: 1; transform: translate(0, 0) rotate(30deg); }
+            100% { opacity: 0; transform: translate(300px, 170px) rotate(30deg); }
+        }
+
+        /* Sun rises as you scroll */
+        #sun {
+            position: absolute;
+            left: 68%;
+            bottom: -10%;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #fff4e0;
+            box-shadow:
+                0 0 40px 20px rgba(150, 190, 255, 0.55),
+                0 0 120px 70px rgba(150, 190, 255, 0.25);
+            will-change: transform;
+        }
+
+        .dune {
+            position: absolute;
+            left: -10%;
+            width: 120%;
+            border-radius: 50% 50% 0 0;
+            will-change: transform;
+        }
+        .dune.back  { bottom: -8%;  height: 30%; background: #7a3a24; }
+        .dune.front { bottom: -14%; height: 26%; background: var(--sand-dark); }
+
+        /* ---------- Layout ---------- */
+        header {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 5rem 1rem 3rem;
+        }
+        header h1 {
+            margin: 0;
+            font-size: clamp(2.2rem, 8vw, 4.5rem);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(227, 112, 26, 0.7);
+        }
+        header p { margin: 0.5rem 0 2rem; color: var(--accent); font-size: 1.2rem; }
+
+        .btn {
+            display: inline-block;
+            padding: 0.8rem 1.8rem;
+            border: 2px solid var(--accent);
+            border-radius: 999px;
+            color: #fff;
+            text-decoration: none;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            transition: background .2s, transform .2s, box-shadow .2s;
+        }
+        .btn:hover {
+            background: var(--accent);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(227, 112, 26, 0.5);
+        }
+
+        .scroll-hint {
+            margin-top: 3rem;
+            color: #f3d9c4;
+            opacity: .7;
+            animation: bob 1.8s infinite ease-in-out;
+        }
+        @keyframes bob { 50% { transform: translateY(10px); } }
+
+        main {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 1rem 4rem;
+        }
+
+        section {
+            background: rgba(52, 29, 20, 0.85);
+            border: 1px solid rgba(227, 112, 26, 0.4);
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            margin-bottom: 30vh;
+            backdrop-filter: blur(4px);
+            /* reveal animation */
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity .8s ease, transform .8s ease;
+        }
+        section.visible { opacity: 1; transform: none; }
+        h2 { margin-top: 0; color: var(--accent); }
+
+        /* ---------- 3D model ---------- */
+        #model-viewer {
+            width: 100%;
+            height: 480px;
+            border-radius: 8px;
+            background: radial-gradient(circle at 50% 70%, rgba(227,112,26,0.25), rgba(0,0,0,0.45));
+            --poster-color: transparent;
+        }
+        .hint { font-size: 0.9rem; opacity: .75; margin: 0.5rem 0 0; text-align: center; }
+
+        .hotspot {
+            display: block;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            background: var(--accent);
+            box-shadow: 0 0 0 0 rgba(227,112,26,.7);
+            animation: pulse 2s infinite;
+            cursor: pointer;
+            padding: 0;
+        }
+        .hotspot:hover { transform: scale(1.2); }
+        @keyframes pulse {
+            70% { box-shadow: 0 0 0 14px rgba(227,112,26,0); }
+            100% { box-shadow: 0 0 0 0 rgba(227,112,26,0); }
+        }
+        .hotspot .tip {
+            position: absolute;
+            left: 30px; top: -4px;
+            white-space: nowrap;
+            background: rgba(0,0,0,.8);
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        /* ---------- Sensors ---------- */
+        .sensors {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+        }
+        .sensor {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: transform .2s, border-color .2s, box-shadow .2s;
+        }
+        .sensor:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            box-shadow: 0 6px 20px rgba(227, 112, 26, 0.35);
+        }
+        .sensor.flash { animation: flash .5s; }
+        @keyframes flash { 50% { background: rgba(227, 112, 26, 0.5); } }
+        .sensor .value { font-size: 1.8rem; color: #fff; }
+        .sensor .label { font-size: 0.9rem; color: var(--accent); }
+        .sensor .detail { font-size: 0.8rem; opacity: .7; height: 1.2em; }
+
+        /* ---------- Team ---------- */
+        .team {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+        .member {
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            transition: transform .2s;
+        }
+        .member:hover { transform: rotate(-2deg) scale(1.05); }
+        .member .avatar { font-size: 2.5rem; }
+
+        footer {
+            text-align: center;
+            padding: 1.5rem 1rem;
+            background: rgba(0, 0, 0, 0.6);
+            color: var(--accent);
+        }
+        footer p { margin: 0; }
+
+        /* Click sparkles */
+        .spark {
+            position: fixed;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            pointer-events: none;
+            z-index: 30;
+            animation: spark .7s ease-out forwards;
+        }
+        @keyframes spark {
+            to { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { animation: none !important; transition: none !important; }
+            section { opacity: 1; transform: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="progress"></div>
+
+    <nav>
+        <a href="#top" data-section="top">Home</a>
+        <a href="#about" data-section="about">About</a>
+        <a href="#explore" data-section="explore">Explore</a>
+        <a href="#sensors" data-section="sensors">Sensors</a>
+        <a href="#team" data-section="team">Team</a>
+    </nav>
+
+    <div id="sky">
+        <div id="sunset"></div>
+        <div id="stars"></div>
+        <div id="sun"></div>
+        <div class="dune back"></div>
+        <div class="dune front"></div>
+    </div>
+
+    <header id="top">
+        <h1>Mars Base</h1>
+        <p>Our home on the red planet</p>
+        <a class="btn" href="#explore">Explore the Base</a>
+        <div class="scroll-hint">↓ scroll to watch the sun rise ↓</div>
+    </header>
+
+    <main>
+        <section id="about">
+            <h2>Welcome to the Base</h2>
+            <p>This is our Martian base. Explore the 3D model of the house and check the live sensor readings from inside.</p>
+        </section>
+
+        <section id="explore">
+            <h2>Explore the Base</h2>
+
+            <script type="module"
+                src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+
+            <!-- Our Blender model (base.glb must sit next to this file) -->
+            <model-viewer id="model-viewer" src="base.glb" alt="3D model of our Mars base"
+                camera-controls auto-rotate auto-rotate-delay="2000"
+                camera-orbit="35deg 70deg auto" min-camera-orbit="auto 5deg auto"
+                shadow-intensity="1.2" exposure="1.1" interaction-prompt="auto">
+
+                <!-- Hotspots: click them. Move them by editing data-position (x y z) -->
+                <button class="hotspot" slot="hotspot-antenna" data-target="light"
+                    data-position="-0.013 1.94 0.9" data-normal="0 1 0">
+                    <span class="tip">Antenna</span></button>
+                <button class="hotspot" slot="hotspot-dome" data-target="humidity"
+                    data-position="0 1 0" data-normal="0 1 0">
+                    <span class="tip">Dome</span></button>
+                <button class="hotspot" slot="hotspot-module" data-target="temp"
+                    data-position="0.8 -0.6 0.84" data-normal="0.7 0 0.7">
+                    <span class="tip">Habitat module</span></button>
+            </model-viewer>
+            <p class="hint">Drag to rotate · scroll to zoom · click the glowing dots</p>
+        </section>
+
+        <section id="sensors">
+            <h2>Base Sensors</h2>
+            <p>Click a sensor to refresh it.</p>
+            <div class="sensors">
+                <div class="sensor" data-sensor="temp" data-unit="°C" data-min="18" data-max="26">
+                    <div class="value">--</div><div class="label">Temperature</div><div class="detail"></div>
+                </div>
+                <div class="sensor" data-sensor="humidity" data-unit="%" data-min="30" data-max="60">
+                    <div class="value">--</div><div class="label">Humidity</div><div class="detail"></div>
+                </div>
+                <div class="sensor" data-sensor="light" data-unit=" lux" data-min="200" data-max="800">
+                    <div class="value">--</div><div class="label">Light</div><div class="detail"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="team">
+            <h2>The Team</h2>
+            <div class="team">
+                <div class="member"><div class="avatar">👩‍🚀</div>Name 1</div>
+                <div class="member"><div class="avatar">👨‍🚀</div>Name 2</div>
+                <div class="member"><div class="avatar">🧑‍🚀</div>Name 3</div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 404 Planet Not Found</p>
+    </footer>
+
+    <script>
+        const $ = (s) => document.querySelector(s);
+        const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+
+        // ---------- Stars ----------
+        const starsEl = $('#stars');
+        for (let i = 0; i < 170; i++) {
+            const s = document.createElement('div');
+            s.className = 'star';
+            const size = Math.random() * 2 + 1;
+            s.style.width = s.style.height = size + 'px';
+            s.style.left = Math.random() * 100 + '%';
+            s.style.top = Math.random() * 100 + '%';
+            s.style.animationDelay = Math.random() * 3 + 's';
+            s.style.animationDuration = (2 + Math.random() * 3) + 's';
+            starsEl.appendChild(s);
+        }
+
+        // ---------- Scroll: night -> sunset ----------
+        const sunset = $('#sunset'), sun = $('#sun');
+        const duneBack = $('.dune.back'), duneFront = $('.dune.front');
+        const bar = $('#progress');
+
+        function onScroll() {
+            const max = document.documentElement.scrollHeight - innerHeight;
+            const p = max > 0 ? clamp(scrollY / max, 0, 1) : 0;
+
+            sunset.style.opacity = p;                          // sky warms up
+            starsEl.style.opacity = 1 - p * 0.85;              // stars fade
+            sun.style.transform = `translateY(${-p * innerHeight * 0.45}px)`; // sun rises
+            duneBack.style.transform = `translateY(${-p * 30}px)`;
+            duneFront.style.transform = `translateY(${-p * 60}px)`;
+            bar.style.width = (p * 100) + '%';
+
+            // highlight current nav link
+            let current = 'top';
+            document.querySelectorAll('header, section').forEach(el => {
+                if (el.getBoundingClientRect().top < innerHeight * 0.5) current = el.id;
+            });
+            document.querySelectorAll('nav a').forEach(a =>
+                a.classList.toggle('active', a.dataset.section === current));
+        }
+        addEventListener('scroll', onScroll, { passive: true });
+        addEventListener('resize', onScroll);
+        onScroll();
+
+        // ---------- Sections fade in when scrolled to ----------
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+        }, { threshold: 0.15 });
+        document.querySelectorAll('section').forEach(s => io.observe(s));
+
+        // ---------- Mouse parallax on stars ----------
+        addEventListener('mousemove', (e) => {
+            const x = (e.clientX / innerWidth - 0.5) * -20;
+            const y = (e.clientY / innerHeight - 0.5) * -20;
+            starsEl.style.transform = `translate(${x}px, ${y}px)`;
+        });
+
+        // ---------- Shooting stars every few seconds ----------
+        setInterval(() => {
+            const s = document.createElement('div');
+            s.className = 'shooting';
+            s.style.left = Math.random() * 60 + '%';
+            s.style.top = Math.random() * 30 + '%';
+            starsEl.appendChild(s);
+            setTimeout(() => s.remove(), 1300);
+        }, 4000);
+
+        // ---------- Click sparkles ----------
+        addEventListener('click', (e) => {
+            for (let i = 0; i < 8; i++) {
+                const sp = document.createElement('div');
+                sp.className = 'spark';
+                sp.style.left = e.clientX + 'px';
+                sp.style.top = e.clientY + 'px';
+                const a = Math.random() * Math.PI * 2, d = 20 + Math.random() * 30;
+                sp.style.setProperty('--dx', Math.cos(a) * d + 'px');
+                sp.style.setProperty('--dy', Math.sin(a) * d + 'px');
+                document.body.appendChild(sp);
+                setTimeout(() => sp.remove(), 700);
+            }
+        });
+
+        // ---------- Sensors ----------
+        // Call this with real Arduino data, e.g. updateSensor('temp', 21.4)
+        function updateSensor(name, value) {
+            const el = document.querySelector(`.sensor[data-sensor="${name}"]`);
+            if (!el) return;
+            el.querySelector('.value').textContent = value + el.dataset.unit;
+            el.querySelector('.detail').textContent = 'Updated ' + new Date().toLocaleTimeString();
+            el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+        }
+
+        // Demo values (random) so the page feels alive. Delete once the Arduino is hooked up.
+        function demoValue(el) {
+            const min = +el.dataset.min, max = +el.dataset.max;
+            return (min + Math.random() * (max - min)).toFixed(1);
+        }
+        document.querySelectorAll('.sensor').forEach(el => {
+            updateSensor(el.dataset.sensor, demoValue(el));
+            el.addEventListener('click', () => updateSensor(el.dataset.sensor, demoValue(el)));
+        });
+
+        document.querySelectorAll('.hotspot').forEach(h => {
+            h.addEventListener('click', () => {
+                const card = document.querySelector(`.sensor[data-sensor="${h.dataset.target}"]`);
+                if (!card) return;
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => {
+                    card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+                }, 600);
+            });
+        });
+    </script>
+</body>
+</html>
