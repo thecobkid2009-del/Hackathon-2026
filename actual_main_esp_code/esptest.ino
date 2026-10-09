@@ -19,7 +19,9 @@ const char* password = "TestESP32";
 
 #define DHT_PIN   16
 #define DHT_TYPE  DHT11
-#define PIR_PIN   4        // GPIO34 is input-only, which is fine for a PIR
+#define PIR_PIN   4          // Digital input pin for the PIR OUT wire
+#define LED_PINGREEN 19
+#define LED_PINRED   18
 
 const unsigned long SENSOR_INTERVAL_MS = 2000;
 const unsigned long WIFI_TIMEOUT_MS    = 20000;
@@ -34,6 +36,9 @@ WebServer server(80);
 float temp = NAN;
 float hum  = NAN;
 bool  motionState = false;
+
+bool          lastRawPIR  = false;
+unsigned long pirChanges  = 0;   // how many times the pin has changed state
 
 // =====================================================
 // 4. Web page
@@ -50,6 +55,8 @@ void handleRoot() {
   }
 
   html += "Motion: " + String(motionState ? "Detected" : "None") + "<br>";
+  html += "PIR pin raw: " + String(digitalRead(PIR_PIN)) + "<br>";
+  html += "PIR state changes: " + String(pirChanges) + "<br>";
   html += "</body></html>";
 
   server.send(200, "text/html", html);
@@ -84,7 +91,15 @@ void connectWiFi() {
 // 6. Sensor reading
 // =====================================================
 void readPIR() {
-  motionState = (digitalRead(PIR_PIN) == HIGH);   // every pass, so short pulses aren't missed
+  bool raw = (digitalRead(PIR_PIN) == HIGH);
+
+  if (raw != lastRawPIR) {          // log every change so you can see it
+    lastRawPIR = raw;
+    pirChanges++;
+    Serial.println(raw ? "PIR changed: HIGH" : "PIR changed: LOW");
+  }
+
+  motionState = raw;
 }
 
 void readDHT() {
@@ -112,7 +127,6 @@ void setup() {
   pinMode(PIR_PIN, INPUT);
   dht.begin();
 
-  // Let the PIR settle before trusting its output
   Serial.println("PIR warming up, please wait...");
   delay(PIR_WARMUP_MS);
   Serial.println("PIR ready.");
