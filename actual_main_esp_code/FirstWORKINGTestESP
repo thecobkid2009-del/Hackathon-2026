@@ -1,0 +1,48 @@
+#include <WiFi.h>
+#include <WebServer.h>
+
+// Wi-Fi credentials
+const char* ssid = "Jacobs S25 Ultra";
+const char* password = "P0tat0Chip";
+
+// Simulated habitat readings
+float temperature = 22.5;
+float humidity = 45.0;
+float oxygen = 98.0;
+float water = 85.0;
+
+WebServer server(80);
+
+// Shows the readings when someone opens the ESP32's IP address in a browser
+void handleRoot() {
+  String html = "<h1>Habitat Status</h1>";
+  html += "Temperature: " + String(temperature) + " C<br>";
+  html += "Humidity: " + String(humidity) + " %<br>";
+  html += "Oxygen: " + String(oxygen) + " %<br>";
+  html += "Water: " + String(water) + " %<br>";
+  server.send(200, "text/html", html);
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to Wi-Fi");
+
+  // Wait until connected
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.print("Connected. IP address: ");
+  Serial.println(WiFi.localIP());
+
+  server.on("/", handleRoot);
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+}
