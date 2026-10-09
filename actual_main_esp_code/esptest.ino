@@ -17,13 +17,14 @@
 const char* ssid     = "ESP NET";
 const char* password = "TestESP32";
 
-#define DHT_PIN   16
-#define DHT_TYPE  DHT11
-#define PIR_PIN   4          // Digital input pin for the PIR OUT wire
-#define LED_PINGREEN 19
-#define LED_PINRED   18
+#define DHT_PIN      16
+#define DHT_TYPE     DHT11
+#define PIR_PIN      4       // Digital input for the PIR OUT wire
+#define LED_GREEN    19      // On when no motion
+#define LED_RED      18      // On when motion detected
+#define BUZZER_PIN   17      // Active buzzer, sounds while motion is detected
 
-const unsigned long SENSOR_INTERVAL_MS = 2000;
+const unsigned long SENSOR_INTERVAL_MS = 2000;   // DHT11 needs at least 2 s between reads
 const unsigned long WIFI_TIMEOUT_MS    = 20000;
 const unsigned long PIR_WARMUP_MS      = 30000;
 
@@ -37,29 +38,63 @@ float temp = NAN;
 float hum  = NAN;
 bool  motionState = false;
 
-bool          lastRawPIR  = false;
-unsigned long pirChanges  = 0;   // how many times the pin has changed state
+bool          lastRawPIR = false;
+unsigned long pirChanges = 0;     // how many times the PIR pin has changed state
 
 // =====================================================
-// 4. Web page
+// 4. Web page and data endpoint
 // =====================================================
-void handleRoot() {
-  String html = "<html><head><meta http-equiv='refresh' content='2'></head><body>";
-  html += "<h1>Habitat Status</h1>";
 
-  if (isnan(temp) || isnan(hum)) {
-    html += "<p>Waiting for sensor readings...</p>";
-  } else {
-    html += "Temperature: " + String(temp, 0) + " &deg;C<br>";   // DHT11 = whole degrees
-    html += "Humidity: " + String(hum, 0) + " %<br>";
+// The page itself. It is sent once; after that, JavaScript updates it.
+const char PAGE[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Habitat Status</title>
+</head>
+<body>
+  <h1>Habitat Status</h1>
+  <p>Temperature: <span id="temp">--</span> &deg;C</p>
+  <p>Humidity: <span id="hum">--</span> %</p>
+  <p>Motion: <span id="motion">--</span></p>
+  <p>PIR pin raw: <span id="raw">--</span></p>
+  <p>PIR state changes: <span id="changes">--</span></p>
+
+<script>
+  function update() {
+    fetch('/data')
+      .then(r => r.json())
+      .then(d => {
+        document.getElementById('temp').textContent    = d.temp === null ? 'waiting' : d.temp.toFixed(0);
+        document.getElementById('hum').textContent     = d.hum  === null ? 'waiting' : d.hum.toFixed(0);
+        document.getElementById('motion').textContent  = d.motion ? 'Detected' : 'None';
+        document.getElementById('raw').textContent     = d.raw;
+        document.getElementById('changes').textContent = d.changes;
+      })
+      .catch(() => {});   // ignore a missed request and try again
   }
+  update();
+  setInterval(update, 500);   // ask for fresh data twice a second
+</script>
+</body>
+</html>
+)rawliteral";
 
-  html += "Motion: " + String(motionState ? "Detected" : "None") + "<br>";
-  html += "PIR pin raw: " + String(digitalRead(PIR_PIN)) + "<br>";
-  html += "PIR state changes: " + String(pirChanges) + "<br>";
-  html += "</body></html>";
+void handleRoot() {
+  server.send_P(200, "text/html", PAGE);
+}
 
-  server.send(200, "text/html", html);
+void handleData() {
+  String json = "{";
+  json += "\"temp\":"    + (isnan(temp) ? String("null") : String(temp, 1)) + ",";
+  json += "\"hum\":"     + (isnan(hum)  ? String("null") : String(hum, 1)) + ",";
+  json += "\"motion\":"  + String(motionState ? "true" : "false") + ",";
+  json += "\"raw\":"     + String(digitalRead(PIR_PIN)) + ",";
+  json += "\"changes\":" + String(pirChanges);
+  json += "}";
+
+  server.send(200, "application/json", json);
 }
 
 // =====================================================
@@ -88,18 +123,25 @@ void connectWiFi() {
 }
 
 // =====================================================
-// 6. Sensor reading
+// 6. Sensor, LED and buzzer control
 // =====================================================
 void readPIR() {
   bool raw = (digitalRead(PIR_PIN) == HIGH);
 
-  if (raw != lastRawPIR) {          // log every change so you can see it
+  if (raw != lastRawPIR) {
     lastRawPIR = raw;
     pirChanges++;
     Serial.println(raw ? "PIR changed: HIGH" : "PIR changed: LOW");
   }
 
   motionState = raw;
+
+  // Green = no motion, red = motion
+  digitalWrite(LED_GREEN, motionState ? LOW : HIGH);
+  digitalWrite(LED_RED,   motionState ? HIGH : LOW);
+
+  // Buzzer sounds while motion is detected
+  digitalWrite(BUZZER_PIN, motionState ? HIGH : LOW);
 }
 
 void readDHT() {
@@ -125,6 +167,13 @@ void setup() {
   Serial.begin(9600);
 
   pinMode(PIR_PIN, INPUT);
+  pinMode(LED_GREEN, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
+
   dht.begin();
 
   Serial.println("PIR warming up, please wait...");
@@ -134,6 +183,7 @@ void setup() {
   connectWiFi();
 
   server.on("/", handleRoot);
+  server.on("/data", handleData);
   server.begin();
 }
 
