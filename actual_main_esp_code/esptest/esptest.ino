@@ -1,4 +1,3 @@
-// =====================================================
 // Mars Guard Beta
 //
 // Authors:
@@ -6,22 +5,12 @@
 // Vincent Watson
 // Sumvidh Bharadwaj
 // Navtej Vishwanath
-// =====================================================
 
-
-
-// =====================================================
-// 1. Libraries
-// =====================================================
 #include <DHT.h>
 #include <WiFi.h>
 #include <WebServer.h>
-
-// =====================================================
-// 2. Configuration
-// =====================================================
-const char* ssid = "ESP NET";   // Local network name
-const char* password = "TestESP32"; // Local network pass
+const char* networkName = "ESP NET";   // Local network name
+const char* networkPassword = "TestESP32"; // Local network pass
 
 #define DHT_PIN 16      // DHT sensor pin
 #define DHT_TYPE DHT11  // Type of DHT sensor being used
@@ -30,27 +19,18 @@ const char* password = "TestESP32"; // Local network pass
 #define LED_RED 18     // On when motion detected
 #define BUZZER_PIN 17  // Active buzzer, on when motion is detected
 
-const unsigned long SENSOR_INTERVAL_MS = 2000; 
-const unsigned long WIFI_TIMEOUT_MS = 20000;
-const unsigned long PIR_WARMUP_MS = 30000;
+const unsigned long dhtReadIntervalMs = 2000; 
+const unsigned long wifiConnectTimeoutMs = 20000;
+const unsigned long pirWarmupMs = 30000;
+DHT climateSensor(DHT_PIN, DHT_TYPE);     // DHT setup
+WebServer webServer(80);   // Web webServer setup
 
-// =====================================================
-// 3. Objects and global state
-// =====================================================
-DHT dht(DHT_PIN, DHT_TYPE);     // DHT setup
-WebServer server(80);   // Web server setup
+float temperatureC = NAN;   // Last readings from the DHT sensor
+float humidityPct = NAN;    
+bool motionDetected = false;   // Has motion been detected
 
-float temp = NAN;   // tempruature reading object
-float hum = NAN;    // humidity reading object
-bool motionState = false;   // Has motion been detected
-
-bool lastRawPIR = false;
-unsigned long pirChanges = 0;  // how many times the PIR pin has changed state
-
-// =====================================================
-// 4. Web page stuff
-// =====================================================
-
+bool pirWasHigh = false;
+unsigned long pirTransitionCount = 0;  // how many times the PIR pin has changed state
 // The actual website that users can see
 const char PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -61,23 +41,17 @@ const char PAGE[] PROGMEM = R"rawliteral(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mars Base</title>
 
-    <!-- =================================================================
-         PART 2: STYLING
-         ================================================================= -->
+    
     <style>
 
-        /* ---------------------------------------------------------------
-            Colours
-           --------------------------------------------------------------- */
+
         :root {
-            --accent: #E3701A;       /* Mars orange */
-            --sand-dark: #341D14;    /* dark sand / panel colour */
-            --text: #f3d9c4;         /* soft sandy white */
+            --accent: #E3701A;       /* orange */
+            --sand-dark: #923E1F;    /* dark sand */
+            --text: #f3d9c4;         /* sandy white */
         }
 
-        /* ---------------------------------------------------------------
-           Basic page setup
-           --------------------------------------------------------------- */
+
         * { box-sizing: border-box; }
         html { scroll-behavior: smooth; }
 
@@ -90,9 +64,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         }
 
 
-        /* ---------------------------------------------------------------
-           Navigation bar 
-           --------------------------------------------------------------- */
+
         nav {
             position: fixed;
             top: 0; left: 0; right: 0;
@@ -120,9 +92,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
             border-color: var(--accent);
         }
 
-        /* ---------------------------------------------------------------
-           Animated sky
-           --------------------------------------------------------------- */
+
         #sky {
             position: fixed;
             inset: 0;
@@ -178,9 +148,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         .dune.back  { bottom: -8%;  height: 30%; background: #7a3a24; }
         .dune.front { bottom: -14%; height: 26%; background: var(--sand-dark); }
 
-        /* ---------------------------------------------------------------
-           Title
-           --------------------------------------------------------------- */
+
         header {
             min-height: 100vh;
             display: flex;
@@ -222,9 +190,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
             box-shadow: 0 8px 25px rgba(227, 112, 26, 0.5);
         }
 
-        /* ---------------------------------------------------------------
-           Content sections (About, Explore, Sensors, Team)
-           --------------------------------------------------------------- */
+
         main {
             max-width: 900px;
             margin: 0 auto;
@@ -253,9 +219,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
             color: var(--accent);
         }
 
-        /* ---------------------------------------------------------------
-           3D model viewer
-           --------------------------------------------------------------- */
+
         #model-viewer {
             width: 100%;
             height: 480px;
@@ -265,9 +229,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         }
 
 
-        /* ---------------------------------------------------------------
-           Sensor cards
-           --------------------------------------------------------------- */
+
         .sensors {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -295,9 +257,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         .sensor .label  { font-size: 0.9rem; color: var(--accent); }
         .sensor .detail { font-size: 0.8rem; opacity: .7; height: 1.2em; }
 
-        /* ---------------------------------------------------------------
-           Team cards
-           --------------------------------------------------------------- */
+
         .team {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -313,9 +273,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         .member:hover { transform: scale(1.05); }
         .member .avatar { font-size: 2.5rem; }
 
-        /* ---------------------------------------------------------------
-           Footer
-           --------------------------------------------------------------- */
+
         footer {
             text-align: center;
             padding: 1.5rem 1rem;
@@ -328,9 +286,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
 </head>
 
 
-<!-- =====================================================================
-     PART 3: PAGE CONTENT
-     ===================================================================== -->
+
 <body>
 
     <!-- Scroll progress bar -->
@@ -355,9 +311,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
     </div>
 
 
-    <!-- ---------------------------------------------------------------
-         title
-         --------------------------------------------------------------- -->
+
     <header id="top">
         <h1>Mars Base</h1>
         <p>Our Place In Space</p>
@@ -366,9 +320,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
     <main>
 
-        <!-- -----------------------------------------------------------
-             About
-             ----------------------------------------------------------- -->
+
         <section id="about">
             <h2>Welcome to the Martian home of the future!</h2>
             <p>
@@ -377,10 +329,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         </section>
 
 
-        <!-- -----------------------------------------------------------
-             Explore: the 3D model of the base
-             3D model loaded from our github repository
-             ----------------------------------------------------------- -->
+
         <section id="explore">
             <h2>Explore the Base</h2>
 
@@ -403,13 +352,11 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
             <!-- Shows "Loading... 40%" or an error message if the model fails -->
             <p id="model-status" class="hint">Loading model…</p>
-            <p class="hint">Drag to rotate · scroll to zoom · click the glowing dots</p>
+            <p class="hint">Drag mouse to rotate · scroll to zoom</p>
         </section>
 
 
-        <!-- -----------------------------------------------------------
-             Sensors: temperature, humidity, motion, and PIR diagnostics
-             ----------------------------------------------------------- -->
+
         <section id="sensors">
             <h2>Base Sensors</h2>
             <p>Live readings from the habitat sensors.</p>
@@ -435,9 +382,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         </section>
 
 
-        <!-- -----------------------------------------------------------
-             Us
-             ----------------------------------------------------------- -->
+
         <section id="team">
             <h2>The Team</h2>
 
@@ -456,22 +401,16 @@ const char PAGE[] PROGMEM = R"rawliteral(
     </footer>
 
 
-    <!-- =================================================================
-         PART 4: BEHAVIOUR (JavaScript)
-         ================================================================= -->
+    
     <script>
 
-        /* ---------------------------------------------------------------
-           Small helpers
-           --------------------------------------------------------------- */
+
         const $ = (selector) => document.querySelector(selector);
         const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
 
-        /* ---------------------------------------------------------------
-           1. Create the stars
-           --------------------------------------------------------------- */
-        const starsEl = $('#stars');
+
+        const starField = $('#stars');
 
         for (let i = 0; i < 170; i++) {
             const star = document.createElement('div');
@@ -485,12 +424,10 @@ const char PAGE[] PROGMEM = R"rawliteral(
             star.style.animationDelay    = Math.random() * 3 + 's';
             star.style.animationDuration = (2 + Math.random() * 3) + 's';
 
-            starsEl.appendChild(star);
+            starField.appendChild(star);
         }
 
-        /* ---------------------------------------------------------------
-           3. Scrolling effects
-           --------------------------------------------------------------- */
+
         const sunset    = $('#sunset');
         const sun       = $('#sun');
         const duneBack  = $('.dune.back');
@@ -498,18 +435,18 @@ const char PAGE[] PROGMEM = R"rawliteral(
         const progress  = $('#progress');
 
         const onScroll = () => {
-            // How far down the page are we? 0 = top, 1 = bottom
+            // scroll height detection
             const maxScroll = document.documentElement.scrollHeight - innerHeight;
             const p = maxScroll > 0 ? clamp(scrollY / maxScroll, 0, 1) : 0;
 
             sunset.style.opacity    = p;
-            starsEl.style.opacity   = 1 - p * 0.85;
+            starField.style.opacity   = 1 - p * 0.85;
             sun.style.transform     = `translateY(${-p * innerHeight * 0.45}px)`;
             duneBack.style.transform  = `translateY(${-p * 30}px)`;
             duneFront.style.transform = `translateY(${-p * 60}px)`;
             progress.style.width    = (p * 100) + '%';
 
-            // Work out which section is on screen and highlight its nav link
+            // highlight current navigation
             let current = 'top';
             document.querySelectorAll('header, section').forEach((el) => {
                 if (el.getBoundingClientRect().top < innerHeight * 0.5) {
@@ -526,9 +463,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         onScroll();   // run once on load
 
 
-        /* ---------------------------------------------------------------
-           4. Sections fade in when you scroll to them
-           --------------------------------------------------------------- */
+
         const fadeObserver = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
                 if (entry.isIntersecting) entry.target.classList.add('visible');
@@ -538,68 +473,47 @@ const char PAGE[] PROGMEM = R"rawliteral(
         document.querySelectorAll('section').forEach((s) => fadeObserver.observe(s));
 
 
-        /* ---------------------------------------------------------------
-           5. 3D model loading status
-           --------------------------------------------------------------- */
+
         const model = $('#model-viewer');
-        const modelStatus = $('#model-status');
+        const viewerStatus = $('#model-status');
 
         model.addEventListener('progress', (event) => {
             const percent = Math.round(event.detail.totalProgress * 100);
             if (percent < 100) {
-                modelStatus.textContent = 'Loading model… ' + percent + '%';
+                viewerStatus.textContent = 'Loading model… ' + percent + '%';
             }
         });
 
         model.addEventListener('load', () => {
-            modelStatus.textContent = '';   // hide the message once it works
+            viewerStatus.textContent = '';   // hide the message once it works
         });
 
-        model.addEventListener('error', (event) => {
-            const reason = event.detail?.sourceError?.message || 'unknown error';
-            modelStatus.textContent = 'Model failed to load: ' + reason;
-            console.error('Model error:', event);
-        });
-
-        // If the library itself never loaded, tell the user why
-        setTimeout(() => {
-            if (!customElements.get('model-viewer')) {
-                modelStatus.textContent =
-                    'The 3D viewer library did not load. Check this device has internet access.';
-            }
-        }, 5000);
 
 
-        /* ---------------------------------------------------------------
-           6. Live ESP32 sensor readings from the /data endpoint
-           --------------------------------------------------------------- */
-        const apiStatus = $('#api-status');
 
-        const update = () => {
+        const sensorStatus = $('#api-status');
+
+        const refreshReadings = () => {
             fetch('/data', { cache: 'no-store' })
                 .then((response) => {
                     if (!response.ok) throw new Error('HTTP ' + response.status);
                     return response.json();
                 })
                 .then((data) => {
-                    $('#temp').textContent = data.temp == null ? 'waiting' : Number(data.temp).toFixed(0);
-                    $('#hum').textContent = data.hum == null ? 'waiting' : Number(data.hum).toFixed(0);
-                    $('#motion').textContent = data.motion ? 'Detected' : 'None';
-                    $('#raw').textContent = data.raw ?? '--';
-                    $('#changes').textContent = data.changes ?? '--';
-                    apiStatus.textContent = 'Connected to ESP32';
+                    $('#temp').textContent = data.temperatureC == null ? 'waiting' : Number(data.temperatureC).toFixed(0);
+                    $('#hum').textContent = data.humidityPct == null ? 'waiting' : Number(data.humidityPct).toFixed(0);
+                    $('#motion').textContent = data.motion ? 'YES! AHHH!!!' : 'No, Phew.';
+                    sensorStatus.textContent = 'Connected to ESP32';
                 })
                 .catch(() => {
-                    apiStatus.textContent = 'Waiting for sensor data from the ESP32…';
+                    sensorStatus.textContent = 'Waiting for sensor data from the ESP32…';
                 });
         }
 
-        update();
-        setInterval(update, 500);
+        refreshReadings();
+        setInterval(refreshReadings, 2000);
 
-        /* ---------------------------------------------------------------
-           7. Clicking a glowing dot on the model jumps to its sensor
-           --------------------------------------------------------------- */
+
         document.querySelectorAll('.hotspot').forEach((dot) => {
             dot.addEventListener('click', () => {
                 const card = document.querySelector(`.sensor[data-sensor="${dot.dataset.target}"]`);
@@ -607,7 +521,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
                 card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-                // Wait for the scroll, then flash the card
+                // showing next cards
                 setTimeout(() => {
                     card.classList.remove('flash');
                     void card.offsetWidth;
@@ -622,35 +536,31 @@ const char PAGE[] PROGMEM = R"rawliteral(
 )rawliteral";
 
 void handleRoot() {
-  server.send_P(200, "text/html", PAGE);
+  webServer.send_P(200, "text/html", PAGE);
 }
 
 void handleData() {
   String json = "{";
-  json += "\"temp\":" + (isnan(temp) ? String("null") : String(temp, 1)) + ",";
-  json += "\"hum\":" + (isnan(hum) ? String("null") : String(hum, 1)) + ",";
-  json += "\"motion\":" + String(motionState ? "true" : "false") + ",";
+  json += "\"temperatureC\":" + (isnan(temperatureC) ? String("null") : String(temperatureC, 1)) + ",";
+  json += "\"humidityPct\":" + (isnan(humidityPct) ? String("null") : String(humidityPct, 1)) + ",";
+  json += "\"motion\":" + String(motionDetected ? "true" : "false") + ",";
   json += "\"raw\":" + String(digitalRead(PIR_PIN)) + ",";
-  json += "\"changes\":" + String(pirChanges);
+  json += "\"changes\":" + String(pirTransitionCount);
   json += "}";
 
-  server.send(200, "application/json", json);
+  webServer.send(200, "application/json", json);
 }
-
-// =====================================================
-// 5. Wi-Fi
-// =====================================================
-void connectWiFi() {
+void connectToWifi() {
   Serial.print("Connecting to Wi-Fi");
-  WiFi.begin(ssid, password);
+  WiFi.begin(networkName, networkPassword);
 
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED) {
-    if (millis() - start > WIFI_TIMEOUT_MS) {
+    if (millis() - start > wifiConnectTimeoutMs) {
       Serial.println();
       Serial.println("Wi-Fi timeout, retrying...");
       WiFi.disconnect();
-      WiFi.begin(ssid, password);
+      WiFi.begin(networkName, networkPassword);
       start = millis();
     }
     delay(500);
@@ -661,48 +571,40 @@ void connectWiFi() {
   Serial.print("Connected. IP address: ");
   Serial.println(WiFi.localIP());
 }
-
-// =====================================================
-// 6. Sensor, LED and buzzer control
-// =====================================================
-void readPIR() {
+void checkMotionSensor() {
   bool raw = (digitalRead(PIR_PIN) == HIGH);
 
-  if (raw != lastRawPIR) {
-    lastRawPIR = raw;
-    pirChanges++;
+  if (raw != pirWasHigh) {
+    pirWasHigh = raw;
+    pirTransitionCount++;
     Serial.println(raw ? "PIR changed: HIGH" : "PIR changed: LOW");
   }
 
-  motionState = raw;
+  motionDetected = raw;
 
   // Green = no motion, red = motion
-  digitalWrite(LED_GREEN, motionState ? LOW : HIGH);
-  digitalWrite(LED_RED, motionState ? HIGH : LOW);
+  digitalWrite(LED_GREEN, motionDetected ? LOW : HIGH);
+  digitalWrite(LED_RED, motionDetected ? HIGH : LOW);
 
   // Buzzer sounds while motion is detected
-  digitalWrite(BUZZER_PIN, motionState ? HIGH : LOW);
+  digitalWrite(BUZZER_PIN, motionDetected ? HIGH : LOW);
 }
 
-void readDHT() {
+void readClimateSensor() {
   static unsigned long lastRead = 0;
-  if (millis() - lastRead < SENSOR_INTERVAL_MS) return;
+  if (millis() - lastRead < dhtReadIntervalMs) return;
   lastRead = millis();
 
-  temp = dht.readTemperature();
-  hum = dht.readHumidity();
+  temperatureC = climateSensor.readTemperature();
+  humidityPct = climateSensor.readHumidity();
 
   Serial.print("Temperature: ");
-  Serial.print(temp);
+  Serial.print(temperatureC);
   Serial.print(" C | Humidity: ");
-  Serial.print(hum);
+  Serial.print(humidityPct);
   Serial.print(" % | Motion: ");
-  Serial.println(motionState ? "Yes" : "No");
+  Serial.println(motionDetected ? "Yes" : "No");
 }
-
-// =====================================================
-// 7. Setup
-// =====================================================
 void setup() {
   Serial.begin(9600);
 
@@ -714,24 +616,22 @@ void setup() {
   digitalWrite(LED_RED, LOW);
   digitalWrite(BUZZER_PIN, LOW);
 
-  dht.begin();
+  climateSensor.begin();
 
   Serial.println("PIR warming up, please wait...");
-  delay(PIR_WARMUP_MS);
+  delay(pirWarmupMs);
   Serial.println("PIR ready.");
 
-  connectWiFi();
+  connectToWifi();
 
-  server.on("/", handleRoot);
-  server.on("/data", handleData);
-  server.begin();
+  webServer.on("/", handleRoot);
+  webServer.on("/data", handleData);
+  webServer.begin();
 }
-
-// =====================================================
-// 8. Main loop
-// =====================================================
 void loop() {
-  server.handleClient();
-  readPIR();
-  readDHT();
+  webServer.handleClient();
+  checkMotionSensor();
+  readClimateSensor();
 }
+
+
