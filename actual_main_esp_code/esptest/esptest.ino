@@ -338,7 +338,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
                 src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 
             <model-viewer id="model-viewer"
-                src="https://raw.githubusercontent.com/thecobkid2009-del/Hackathon-2026/main/website%20(Totally%20not%20vibe%20coded)/marsbase.glb"
+                src="https://raw.githubusercontent.com/thecobkid2009-del/Hackathon-2026/main/website/marsbase.glb"
                 alt="3D model of our Mars base"
                 camera-controls
                 auto-rotate
