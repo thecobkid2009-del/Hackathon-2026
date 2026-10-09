@@ -13,7 +13,7 @@ float lightLevel;
 float temp;
 float hum;
 
-#define LDR_PIN 5
+#define LDR_PIN 32
 
 #define DHT_PIN 16 //DHT sensor module used for measuring temp and humidity
 
