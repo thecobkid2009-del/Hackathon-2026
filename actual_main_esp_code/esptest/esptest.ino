@@ -57,6 +57,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
 <head>
     <meta charset="UTF-8">
+<link rel="icon" type="image/x-icon" href="https://raw.githubusercontent.com/thecobkid2009-del/Hackathon-2026/main/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mars Base</title>
 
@@ -151,28 +152,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
             position: absolute;
             background: #fff;
             border-radius: 50%;
-            animation: twinkle 3s infinite ease-in-out;
         }
-        @keyframes twinkle {
-            0%, 100% { opacity: 0.9; }
-            50%      { opacity: 0.2; }
-        }
-
-        /* Shooting stars (created by JavaScript every few seconds) */
-        .shooting {
-            position: absolute;
-            width: 120px;
-            height: 2px;
-            background: linear-gradient(to right, rgba(255, 255, 255, 0), #fff);
-            transform: rotate(30deg);
-            opacity: 0;
-            animation: shoot 1.2s ease-out forwards;
-        }
-        @keyframes shoot {
-            0%   { opacity: 1; transform: translate(0, 0) rotate(30deg); }
-            100% { opacity: 0; transform: translate(300px, 170px) rotate(30deg); }
-        }
-
 
         #sun {
             position: absolute;
@@ -284,32 +264,6 @@ const char PAGE[] PROGMEM = R"rawliteral(
             --poster-color: transparent;
         }
 
-        .hotspot {
-            display: block;
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            border: 2px solid #fff;
-            background: var(--accent);
-            box-shadow: 0 0 0 0 rgba(227, 112, 26, .7);
-            cursor: pointer;
-            padding: 0;
-        }
-        .hotspot:hover { transform: scale(1.2); }
-
-        /* Little label that appears next to each dot */
-        .hotspot .tip {
-            position: absolute;
-            left: 30px;
-            top: -4px;
-            white-space: nowrap;
-            background: rgba(0, 0, 0, .8);
-            color: #fff;
-            padding: 3px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            pointer-events: none;
-        }
 
         /* ---------------------------------------------------------------
            Sensor cards
@@ -402,24 +356,23 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
 
     <!-- ---------------------------------------------------------------
-         Home: the big title
+         title
          --------------------------------------------------------------- -->
     <header id="top">
         <h1>Mars Base</h1>
-        <p>Our home on the red planet</p>
+        <p>Our Place In Space</p>
         <a class="btn" href="#explore">Explore the Base</a>
     </header>
 
     <main>
 
         <!-- -----------------------------------------------------------
-             About: a short welcome
+             About
              ----------------------------------------------------------- -->
         <section id="about">
-            <h2>Welcome to the Base</h2>
+            <h2>Welcome to the Martian home of the future!</h2>
             <p>
-                This is our Martian base. Explore the 3D model of the house
-                and check the live sensor readings from inside.
+                This is an example of what our place in space, being a rightfully claimed plot of land on Mars, would look like. It includes what systems would be present and how they would work.
             </p>
         </section>
 
@@ -446,25 +399,6 @@ const char PAGE[] PROGMEM = R"rawliteral(
                 shadow-intensity="1.2"
                 exposure="1.1"
                 interaction-prompt="none">
-                
-
-                <!-- Dot 1: Antenna (jumps to the motion reading) -->
-                <button class="hotspot" slot="hotspot-antenna" data-target="motion"
-                    data-position="-0.013 1.94 0.9" data-normal="0 1 0">
-                    <span class="tip">Antenna</span>
-                </button>
-
-                <!-- Dot 2: Dome (jumps to the Humidity sensor) -->
-                <button class="hotspot" slot="hotspot-dome" data-target="humidity"
-                    data-position="0 1 0" data-normal="0 1 0">
-                    <span class="tip">Dome</span>
-                </button>
-
-                <!-- Dot 3: Habitat module (jumps to the Temperature sensor) -->
-                <button class="hotspot" slot="hotspot-module" data-target="temp"
-                    data-position="0.8 -0.6 0.84" data-normal="0.7 0 0.7">
-                    <span class="tip">Habitat module</span>
-                </button>
             </model-viewer>
 
             <!-- Shows "Loading... 40%" or an error message if the model fails -->
@@ -502,16 +436,16 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
 
         <!-- -----------------------------------------------------------
-             Team: who built this
+             Us
              ----------------------------------------------------------- -->
         <section id="team">
             <h2>The Team</h2>
 
             <div class="team">
-                <div class="member"><div class="avatar">👩‍🚀</div>Jacob Luscombe</div>
-                <div class="member"><div class="avatar">👨‍🚀</div>Vincent Watson</div>
-                <div class="member"><div class="avatar">🧑‍🚀</div>Sumvidh Bharadwaj</div>
-                <div class="member"><div class="avatar">🧑‍🚀</div>Navtej Vishwanath</div>
+                <div class="member"><div class="avatar">;)</div>Jacob Luscombe</div>
+                <div class="member"><div class="avatar">>:|</div>Vincent Watson</div>
+                <div class="member"><div class="avatar">:)</div>Sumvidh Bharadwaj</div>
+                <div class="member"><div class="avatar">:^)</div>Navtej Vishwanath</div>
             </div>
         </section>
 
@@ -535,7 +469,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
 
         /* ---------------------------------------------------------------
-           1. Create the twinkling stars
+           1. Create the stars
            --------------------------------------------------------------- */
         const starsEl = $('#stars');
 
@@ -553,21 +487,6 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
             starsEl.appendChild(star);
         }
-
-
-        /* ---------------------------------------------------------------
-           2. Shooting star every 4 seconds
-           --------------------------------------------------------------- */
-        setInterval(() => {
-            const shot = document.createElement('div');
-            shot.className = 'shooting';
-            shot.style.left = Math.random() * 60 + '%';
-            shot.style.top  = Math.random() * 30 + '%';
-            starsEl.appendChild(shot);
-
-            setTimeout(() => shot.remove(), 1300);   // clean up after it fades
-        }, 4000);
-
 
         /* ---------------------------------------------------------------
            3. Scrolling effects
