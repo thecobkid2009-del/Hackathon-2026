@@ -1,8 +1,14 @@
-/*
- * Habitat Status: ESP32 web monitor
- * DHT11 temperature/humidity + PIR motion, served on a local web page.
- * Requires the Adafruit "DHT sensor library" and "Adafruit Unified Sensor".
- */
+// =====================================================
+// Mars Guard Beta
+//
+// Authors:
+// Jacob Luscombe
+// Vincent Watson
+// Sumvidh Bharadwaj
+// Navtej Vishwanath
+// =====================================================
+
+
 
 // =====================================================
 // 1. Libraries
@@ -14,52 +20,40 @@
 // =====================================================
 // 2. Configuration
 // =====================================================
-const char* ssid     = "ESP NET";
-const char* password = "TestESP32";
+const char* ssid = "ESP NET";   // Local network name
+const char* password = "TestESP32"; // Local network pass
 
-#define DHT_PIN      16
-#define DHT_TYPE     DHT11
-#define PIR_PIN      4       // Digital input for the PIR OUT wire
-#define LED_GREEN    19      // On when no motion
-#define LED_RED      18      // On when motion detected
-#define BUZZER_PIN   17      // Active buzzer, sounds while motion is detected
+#define DHT_PIN 16      // DHT sensor pin
+#define DHT_TYPE DHT11  // Type of DHT sensor being used
+#define PIR_PIN 4      // PIR sensor pin
+#define LED_GREEN 19   // On when no motion
+#define LED_RED 18     // On when motion detected
+#define BUZZER_PIN 17  // Active buzzer, on when motion is detected
 
-const unsigned long SENSOR_INTERVAL_MS = 2000;   // DHT11 needs at least 2 s between reads
-const unsigned long WIFI_TIMEOUT_MS    = 20000;
-const unsigned long PIR_WARMUP_MS      = 30000;
+const unsigned long SENSOR_INTERVAL_MS = 2000; 
+const unsigned long WIFI_TIMEOUT_MS = 20000;
+const unsigned long PIR_WARMUP_MS = 30000;
 
 // =====================================================
 // 3. Objects and global state
 // =====================================================
-DHT dht(DHT_PIN, DHT_TYPE);
-WebServer server(80);
+DHT dht(DHT_PIN, DHT_TYPE);     // DHT setup
+WebServer server(80);   // Web server setup
 
-float temp = NAN;
-float hum  = NAN;
-bool  motionState = false;
+float temp = NAN;   // tempruature reading object
+float hum = NAN;    // humidity reading object
+bool motionState = false;   // Has motion been detected
 
-bool          lastRawPIR = false;
-unsigned long pirChanges = 0;     // how many times the PIR pin has changed state
+bool lastRawPIR = false;
+unsigned long pirChanges = 0;  // how many times the PIR pin has changed state
 
 // =====================================================
-// 4. Web page and data endpoint
+// 4. Web page stuff
 // =====================================================
 
-// The page itself. It is sent once; after that, JavaScript updates it.
+// The actual website that users can see
 const char PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
-<html lang="en">
-
-<!-- =====================================================================
-     MARS BASE WEBSITE
-     One file, no build step, easy to serve from an ESP32.
-
-     Layout of this file:
-       PART 1  - The page head (title, mobile settings)
-       PART 2  - The styling (CSS)
-       PART 3  - The page content (HTML)
-       PART 4  - The behaviour (JavaScript)
-     ===================================================================== -->
 
 <head>
     <meta charset="UTF-8">
@@ -72,8 +66,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
     <style>
 
         /* ---------------------------------------------------------------
-           Colours we reuse everywhere. Change them here, they update
-           across the whole site.
+            Colours
            --------------------------------------------------------------- */
         :root {
             --accent: #E3701A;       /* Mars orange */
@@ -87,15 +80,6 @@ const char PAGE[] PROGMEM = R"rawliteral(
         * { box-sizing: border-box; }
         html { scroll-behavior: smooth; }
 
-        #progress {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 3px;
-            width: 0;
-            background: var(--accent);
-            z-index: 20;
-        }
         body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
@@ -106,7 +90,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
 
         /* ---------------------------------------------------------------
-           Navigation bar (stays at the top of the screen)
+           Navigation bar 
            --------------------------------------------------------------- */
         nav {
             position: fixed;
@@ -136,8 +120,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         }
 
         /* ---------------------------------------------------------------
-           The animated sky behind everything
-           Night at the top of the page, Martian sunset as you scroll.
+           Animated sky
            --------------------------------------------------------------- */
         #sky {
             position: fixed;
@@ -190,7 +173,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
             100% { opacity: 0; transform: translate(300px, 170px) rotate(30deg); }
         }
 
-        /* The (small, pale blue) Martian sun, rises as you scroll */
+
         #sun {
             position: absolute;
             left: 68%;
@@ -205,7 +188,6 @@ const char PAGE[] PROGMEM = R"rawliteral(
             will-change: transform;
         }
 
-        /* Sand dunes at the bottom of the screen */
         .dune {
             position: absolute;
             left: -10%;
@@ -217,7 +199,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         .dune.front { bottom: -14%; height: 26%; background: var(--sand-dark); }
 
         /* ---------------------------------------------------------------
-           Hero section (the big title at the top)
+           Title
            --------------------------------------------------------------- */
         header {
             min-height: 100vh;
@@ -262,7 +244,6 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
         /* ---------------------------------------------------------------
            Content sections (About, Explore, Sensors, Team)
-           They start invisible and fade in when you scroll to them.
            --------------------------------------------------------------- */
         main {
             max-width: 900px;
@@ -293,7 +274,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
         }
 
         /* ---------------------------------------------------------------
-           3D model viewer and its clickable dots (hotspots)
+           3D model viewer
            --------------------------------------------------------------- */
         #model-viewer {
             width: 100%;
@@ -445,13 +426,7 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
         <!-- -----------------------------------------------------------
              Explore: the 3D model of the base
-
-             The model is loaded straight from GitHub, so the device
-             viewing this page needs internet access.
-
-             Hotspots (the glowing dots) must sit INSIDE the
-             <model-viewer> tags. Move a dot by editing data-position
-             (x y z).
+             3D model loaded from our github repository
              ----------------------------------------------------------- -->
         <section id="explore">
             <h2>Explore the Base</h2>
@@ -500,8 +475,6 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
         <!-- -----------------------------------------------------------
              Sensors: temperature, humidity, motion, and PIR diagnostics
-             To add a sensor, copy one block and change data-sensor,
-             data-unit, and the label.
              ----------------------------------------------------------- -->
         <section id="sensors">
             <h2>Base Sensors</h2>
@@ -521,18 +494,9 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
                 <div class="sensor" data-sensor="motion">
                     <div class="value" id="motion">--</div>
-                    <div class="label">Motion</div>
+                    <div class="label">Alien</div>
                 </div>
 
-                <div class="sensor" data-sensor="raw">
-                    <div class="value" id="raw">--</div>
-                    <div class="label">PIR pin raw</div>
-                </div>
-
-                <div class="sensor" data-sensor="changes">
-                    <div class="value" id="changes">--</div>
-                    <div class="label">PIR state changes</div>
-                </div>
             </div>
         </section>
 
@@ -607,10 +571,6 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
         /* ---------------------------------------------------------------
            3. Scrolling effects
-              - sky changes from night to sunset
-              - stars fade, sun and dunes move
-              - progress bar fills
-              - the current nav link is highlighted
            --------------------------------------------------------------- */
         const sunset    = $('#sunset');
         const sun       = $('#sun');
@@ -661,8 +621,6 @@ const char PAGE[] PROGMEM = R"rawliteral(
 
         /* ---------------------------------------------------------------
            5. 3D model loading status
-              Shows progress, and a readable error if loading fails.
-              Handy for debugging on the ESP32.
            --------------------------------------------------------------- */
         const model = $('#model-viewer');
         const modelStatus = $('#model-status');
@@ -750,10 +708,10 @@ void handleRoot() {
 
 void handleData() {
   String json = "{";
-  json += "\"temp\":"    + (isnan(temp) ? String("null") : String(temp, 1)) + ",";
-  json += "\"hum\":"     + (isnan(hum)  ? String("null") : String(hum, 1)) + ",";
-  json += "\"motion\":"  + String(motionState ? "true" : "false") + ",";
-  json += "\"raw\":"     + String(digitalRead(PIR_PIN)) + ",";
+  json += "\"temp\":" + (isnan(temp) ? String("null") : String(temp, 1)) + ",";
+  json += "\"hum\":" + (isnan(hum) ? String("null") : String(hum, 1)) + ",";
+  json += "\"motion\":" + String(motionState ? "true" : "false") + ",";
+  json += "\"raw\":" + String(digitalRead(PIR_PIN)) + ",";
   json += "\"changes\":" + String(pirChanges);
   json += "}";
 
@@ -801,7 +759,7 @@ void readPIR() {
 
   // Green = no motion, red = motion
   digitalWrite(LED_GREEN, motionState ? LOW : HIGH);
-  digitalWrite(LED_RED,   motionState ? HIGH : LOW);
+  digitalWrite(LED_RED, motionState ? HIGH : LOW);
 
   // Buzzer sounds while motion is detected
   digitalWrite(BUZZER_PIN, motionState ? HIGH : LOW);
@@ -813,7 +771,7 @@ void readDHT() {
   lastRead = millis();
 
   temp = dht.readTemperature();
-  hum  = dht.readHumidity();
+  hum = dht.readHumidity();
 
   Serial.print("Temperature: ");
   Serial.print(temp);
@@ -858,7 +816,3 @@ void loop() {
   readPIR();
   readDHT();
 }
-
-
-
-
